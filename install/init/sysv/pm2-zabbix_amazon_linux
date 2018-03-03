@@ -1,0 +1,75 @@
+# Install this file as /etc/init.d/pm2-zabbix
+
+### BEGIN INIT INFO
+# Provides:        pm2-zabbix
+# Required-Start:  $network $remote_fs $syslog
+# Required-Stop:   $network $remote_fs $syslog
+# Default-Start:   2 3 4 5
+# Default-Stop:
+# Short-Description: Start PM2 monitor for Zabbix
+### END INIT INFO
+
+. /etc/rc.d/init.d/functions
+
+NAME="pm2-zabbix"
+USER="webdev"
+DAEMON=/usr/local/bin/pm2-zabbix
+PIDFILE=/var/run/pm2-zabbix.pid
+
+PATH=/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# Actual start/stop logic
+[ -x "$DAEMON" ] || exit 0
+
+start() {
+        echo -n "Starting PM2 Zabbix: "
+     daemon --user $USER --pidfile $PIDFILE $DAEMON "--monitor 2>&1 &"
+     RETVAL=$?
+     sleep 5
+     PID=`ps aux|grep -vE 'grep|runuser|bash'|grep -w "$DAEMON"|awk '{print $2}'`
+        if [ -z "$PID" ]; then
+            printf "[ \e[31mFAIL\033[0m ]\n"
+        else
+            echo $PID > $PIDFILE
+            printf "[ \e[32mOK\033[0m ]\n"
+        fi
+}
+
+stop() {
+        echo -n "Shutting down PM2 Zabbix: "
+        echo
+        killproc -p $PIDFILE pm2-zabbix
+        echo
+        rm -f /var/lock/subsys/pm2-zabbix
+        return 0
+}
+
+case $1 in
+     start)
+          start
+          ;;
+     stop)
+            stop
+          ;;
+     restart|force-reload)
+          $0 stop && sleep 2 && $0 start
+            ;;
+     try-restart)
+          if $0 status >/dev/null; then
+               $0 restart
+          else
+               exit 0
+          fi
+          ;;
+     reload)
+          exit 3
+          ;;
+     status)
+          status -p "$PIDFILE" "$DAEMON" "$NAME" && exit 0 || exit $?
+          ;;
+     *)
+          echo "Usage: $0 {start|stop|restart|try-restart|force-reload|status}"
+          exit 2
+          ;;
+esac
+
